@@ -7,7 +7,7 @@ import zope.interface
 from certbot import errors
 from certbot import interfaces
 from certbot.plugins import dns_common
-from certbot_dns_ngenix.ngenix_api import NgenixApi
+from certbot_dns_ngenix.ngenix_api import Ngenix
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +76,10 @@ class _NgenixClient:
     """
 
     def __init__(self, email, api_token):
-        self.api = NgenixApi(email, api_token)
-        self.me = self.api.whoami()
+        try:
+            self.api = Ngenix(email, api_token)
+        except Exception as e:
+            raise errors.PluginError('Unable reach Ngenix: {}'.format(e))
 
     def add_txt_record(self, domain: str, record_name: str, record_content: str, record_ttl: int) -> None:
         """
@@ -90,23 +92,9 @@ class _NgenixClient:
         """
 
         zone_id = self._find_zone_id(domain)
-        zone_data = self._get_zone_data(zone_id)
-        record_name = record_name.replace('.' + zone_data['name'], '')
-
-        record = {"name": record_name,
-                "type": "TXT",
-                "data": record_content}
-
-        records = zone_data['records']
-        ok = False
-        for rr in records:
-            if rr['name'] == record_name:
-                rr['data'] = record_content
-                ok = True
-        if not ok:
-            records.append(record)
-
-        self.api.update_zone(zone_id, {"records": records})
+        zone = self._get_zone_data(zone_id)
+        record_name = record_name.replace('.' + zone.name, '')
+        zone.add(record_name, "TXT", record_content)
 
     def del_txt_record(self, domain: str, record_name: str, record_content: str) -> None:
         """
@@ -120,19 +108,10 @@ class _NgenixClient:
         """
 
         zone_id = self._find_zone_id(domain)
-        zone_data = self._get_zone_data(zone_id)
-        record_name = record_name.replace('.' + zone_data['name'], '')
+        zone = self._get_zone_data(zone_id)
+        record_name = record_name.replace('.' + zone.name, '')
+        zone.delete(record_name, "TXT", record_content)
 
-        record = {"name": record_name, 
-                "type": "TXT",
-                "data": record_content}
-
-        records = zone_data['records']
-        for rr in records:
-            if rr['name'] == record_name and rr['data'] == record_content:
-                del records[records.index(record)]
-
-        self.api.update_zone(zone_id, {"records": records})
 
     def _find_zone_id(self, domain):
         """
@@ -144,16 +123,14 @@ class _NgenixClient:
         """
 
         zone_name_guesses = dns_common.base_domain_name_guesses(domain)
-        logger.debug(zone_name_guesses)
 
         try:
-            zones = self.api.list_zones(self.me['customerRef']['id'])
-            for zone in zones['elements']:
-                logger.debug(zone)
-                if zone['name'] in zone_name_guesses:
-                    return zone['id']
+            for zone_name in zone_name_guesses:
+                zone = self.api.services.dns().zone(zone_name)
+                if zone:
+                    return zone.name
         except Exception as e:
-            raise errors.PluginError('{}'.format(e))
+            raise errors.PluginError('Unable to get zone data: {}'.format(e))
         
         raise errors.PluginError('Cannot find zone for domain: {}'.format(domain))
         
@@ -167,8 +144,8 @@ class _NgenixClient:
         """
 
         try:
-            zone_data = self.api.get_zone(zone_id)
+            zone = self.api.services.dns().zone(zone_id)
         except Exception as e:
             raise errors.PluginError('Unable to get zone data: {}'.format(e))
 
-        return zone_data
+        return zone
