@@ -14,10 +14,10 @@ pycparser==2.21
 pyOpenSSL==22.0.0
 pyRFC3339==1.1
 pytz==2022.1
-requests==2.32.0
+requests==2.32.2
 requests-toolbelt==0.9.1
 six==1.16.0
-urllib3==1.26.18
+urllib3==1.26.19
 zope.component==5.0.1
 zope.event==4.5.0
 zope.hookable==5.1.0
