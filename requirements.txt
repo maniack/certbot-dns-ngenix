@@ -4,7 +4,7 @@ certifi==2024.7.4
 cffi==1.15.0
 charset-normalizer==2.0.12
 ConfigArgParse==1.5.3
-cryptography==44.0.1
+cryptography==46.0.5
 configobj==5.0.9
 distro==1.7.0
 idna==3.7
